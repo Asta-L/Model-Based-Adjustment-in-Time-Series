@@ -1,2 +1,6 @@
 # Model-Based-Adjustment-in-Time-Series
 Explore an extensive array of curve adjustment methodologies meticulously authored and developed within the scope of my current role as a data scientist, inspired by insights from my skip-level manager. Beyond the methodologies themselves, delve into an innovative model-based user interface crafted to inspire and empower data scientists to enhance their analyses with confidence. It is essential to note that all data utilized within this repository has been modified or falsified to maintain confidentiality.
+
+The work is detailed in the user_interface.ipynb notebook, which covers all techniques including shape selection, smoothing, releveling, rank ordering, reject inferencing, and forecasting. The underlying code is implemented in curve_adjustments.py, with additional helper functions in utils.py.
+
+Time series adjustments are a foundational component of our credit risk modeling, crucial for establishing the basis of our 5-year financial projections and formulating credit strategies. Unfortunately, due to confidentiality concerns, I can only present this segment of the work and not the complete modeling process. I hope this piece of work, to which I have heavily contributed, will inspire professionals in similar areas. I am open to any discussions!
