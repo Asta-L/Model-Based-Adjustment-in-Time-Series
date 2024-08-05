@@ -7,8 +7,8 @@ import matplotlib.pyplot as plt
 input_path = 'inputs/'
 output_path = 'outputs/'
 ####data####
-Performance_12mob = 'performance_16mob.csv'
-Performance_shape = 'performance_20mob.csv'
+Performance_12mob = 'performance_12mob.csv'
+Performance_shape = 'performance_16mob.csv'
 ####seg####
 segmentations = pd.read_csv(input_path + 'rankings.csv').drop(columns=['if_closed', 'risk_ranking', 'rev_ranking'])
 seg = segmentations.columns.to_list()
@@ -94,7 +94,8 @@ def plot_curve_sbs_method(actual, df, title, k):
 
 def smooth_to_average_mob(df, curve, mob_start, mob_end):
     df1 = df.copy()
-    df1.iloc[curve-1:curve, mob_start-1:mob_end] = df.iloc[curve-1:curve, mob_start-1:mob_end].mean(axis = 1).values
+    mean_values = df.iloc[curve-1:curve, mob_start-1:mob_end].mean(axis=1).values
+    df1.iloc[curve-1:curve, mob_start-1:mob_end] = np.repeat(mean_values[:, np.newaxis], mob_end - mob_start + 1, axis=1)
     return df1
 
 
@@ -148,7 +149,7 @@ def relevel_by_shape(sample_size, threshold, actual, shape, shape_mob_start, sha
     actual_c = actual.copy()
     for i in sample_size.index:
         if sample_size.loc[i].values <= threshold:
-            factor = actual.loc[i,actual_mob_start:actual_mob_end].mean() / merge_curve_shape(actual, shape).loc[i, shape_mob_start, shape_mob_end].mean()
+            factor = actual.loc[i,actual_mob_start:actual_mob_end].mean() / merge_curve_shape(actual, shape).loc[i, shape_mob_start:shape_mob_end].mean()
             actual_c.loc[i] = merge_curve_shape(actual, shape).loc[i,:actual_mob_end] * factor
     return actual_c
 
@@ -200,24 +201,25 @@ def extend(df, start, end):
     df_merge = df_merge.fillna(0)
     return df_merge
 
+def moving_average(series, window=3):
+    return series.rolling(window=window, min_periods=1).mean()
 
 def m_average(df, forecast, end):
     y = [i for i in range(df.columns[0], forecast+1)]
     df_ma = df.loc[:,y].copy()
     df_ma_ext = extend(df_ma, forecast+1, end+1)
-    for i in df_ma_ext.columns:
-        if i > forecast:
-            df_ma_ext[i] = np.sum(df_ma_ext.loc[:, [i-1, i-2, i-3]], axis = 1) / 3
-        return df_ma_ext
+    for col in df_ma_ext.columns[forecast:]:
+        df_ma_ext[col] = df_ma_ext.loc[:,col-3:col-1].mean(axis = 1)
+
+    return df_ma_ext
 
 def m_average_ft(df, forecast, end, factor):
     y = [i for i in range(df.columns[0], forecast+1)]
     df_ma = df.loc[:,y].copy()
     df_ma_ext = extend(df_ma, forecast+1, end+1)
-    for i in df_ma_ext.columns:
-        if i > forecast:
-            df_ma_ext[i] = np.sum(df_ma_ext.loc[:, [i-1, i-2, i-3]], axis = 1) * factor / 3
-        return df_ma_ext
+    for col in df_ma_ext.columns[forecast:]:
+        df_ma_ext[col] = df_ma_ext.loc[:,col-3:col-1].mean(axis = 1) * factor
+    return df_ma_ext
     
 
 def forecast_lastmth(df, forecast, end):

@@ -1,3 +1,6 @@
+import warnings
+warnings.filterwarnings('ignore')
+
 from utils import *
 from sklearn.linear_model import LinearRegression
 from scipy.optimize import curve_fit
@@ -33,7 +36,7 @@ def plot_grid(data, enclude_closed = True):
 
 
 ##### power analysis###
-threshold = 200
+threshold = 1000
 
 var = ['booked_accts',
        'open_accts',
@@ -44,13 +47,13 @@ var = ['booked_accts',
        'credit_limit',
        'annual_fee']
 
-default_table = {'lmt_per_open': [1,16,1000],
-                 'ulr_per_open': [9,16,0.0001],
-                 'bal_util': [9,16,0.01],
-                 'pur_util': [9,16,0.01],
-                 'revol_util': [9,16,0.01],
-                 'open_per_booked': [1,16,0.95],
-                 'annual_fee': [1,16,5]}
+default_table = {'lmt_per_open': [1,12,1000],
+                 'ulr_per_open': [9,12,0.0001],
+                 'bal_util': [9,12,0.01],
+                 'pur_util': [9,12,0.01],
+                 'revol_util': [9,12,0.01],
+                 'open_per_booked': [1,12,0.95],
+                 'annual_fee': [1,12,5]}
 
 
 class GetData:
@@ -104,14 +107,18 @@ class GetData:
         for key in default:
             no_sample_index = sample_size_actual[sample_size_actual['valuesum'] == 0].index
             nan_index = data[key][data[key].drop('if_closed', axis = 1).sum (1) == 0].index
-            index = no_sample_index & nan_index
+            index = np.intersect1d(no_sample_index, nan_index)
+            # index = set(no_sample_index) & set(nan_index)
+            # index = no_sample_index & nan_index
             if len(index) != 0: 
                 data[key].loc[index,default[key][0]:default[key][1]] = default[key][2]
                 data[key].loc[nan_index, default[key][0]:default[key][1]] = default[key][2]
             if key == 'ulr_per_open':
                 low_sample_index = sample_size_actual[sample_size_actual['valuesum'] < threshold].index
                 no_ulr_index = data[key][data[key].drop('if_closed', axis = 1).sum (1) == 0].index
-                index = low_sample_index & no_ulr_index
+                index = np.intersect1d(low_sample_index, no_ulr_index)
+                # index = set(low_sample_index) & set(no_ulr_index)
+                # index = low_sample_index & no_ulr_index
                 if len(index) != 0: 
                     data[key].loc[index, default[key][0]:default[key][1]] = default[key][2]
         return data
@@ -136,7 +143,7 @@ class ShapeSelection():
             combinations[y].append('MOB')
         return combinations
     def rollup(self):
-        if self.mob == 16:
+        if self.mob == 12:
             self.perf = GetData().raw_perf_12mob
         else: 
             self.perf = GetData().raw_perf_shape
@@ -341,7 +348,7 @@ class RejectInferencing:
         return rank_order_levels
     
     def reject_inferencing_ulr(self, reverse_rev = True):
-        data = self.get_rankorder_levels()['ulr_per_open']
+        data = self.get_rankorder_levels()['ulr_per_open'].copy()
         data.rename(columns = {'flag': 'if_closed'}, inplace= True)
         data['if_closed'] = data['if_closed'].apply(lambda v:1 if v == -1 else 0)
         data.loc[data[data['if_closed']==1].index, 'Target'] = np.nan
@@ -412,7 +419,7 @@ class RejectInferencing:
 
 
     def reject_inferencing_rev(self, metric_name, reverse_rev = True):
-        data = self.get_rankorder_levels()[metric_name]
+        data = self.get_rankorder_levels()[metric_name].copy()
         data.rename(columns = {'flag': 'if_closed'}, inplace= True)
         data['if_closed'] = data['if_closed'].apply(lambda v:1 if v == -1 else 0)
         data.loc[data[data['if_closed']==1].index, 'Target'] = np.nan
@@ -467,7 +474,7 @@ class RejectInferencing:
                         missing_indices = np.where(np.isnan(y_rev[i]))
                         y_rev[i, missing_indices] = linear_function2(x_rev[i, missing_indices],a,c)
 
-                y_rev = np.where(y_rev>0.95, 0.95, y_rev)
+                # y_rev = np.where(y_rev>1, 1, y_rev)
                 seg_view.loc[s,'Target'] = y_rev
 
             table = seg_view.stack().reset_index().set_index(seg)
@@ -549,7 +556,7 @@ class Forecasting:
         metric_60mob = {}
         open_per_booked_mom = {}
 
-        per_open_metric_60mob = self.get_cell_level_metrics()
+        per_open_metric_60mob = self.get_cell_level_metrics().copy()
         open_metrics = [metric for metric in per_open_metric_60mob.keys() if 'booked' not in metric]
         booked_metrics = [metric for metric in per_open_metric_60mob.keys() if 'booked' in metric]
         for metric in open_metrics:
@@ -560,8 +567,8 @@ class Forecasting:
                 metric_60mob[f'{metric}_60mob'] = forecast_func(per_open_metric_60mob[metric], 12, 60)
 
         for metric in booked_metrics:
-            open_per_booked_mom[metric]= self.mom_factor(booked_metrics[metric])
-            metric_60mob[f'{metric}_60mob'] = self.num_open_accounts(booked_metrics[metric], open_per_booked_mom[metric])
+            open_per_booked_mom[metric]= self.mom_factor(per_open_metric_60mob[metric])
+            metric_60mob[f'{metric}_60mob'] = self.num_open_accounts(per_open_metric_60mob[metric], open_per_booked_mom[metric])
 
         return metric_60mob
 
@@ -585,7 +592,7 @@ class Forecasting:
         for i in num_open_accounts_60mob.index:
             for j in num_open_accounts_60mob.loc[i].index:
                 if j > 12:
-                    num_open_accounts_60mob.loc[i][j] = num_open_accounts_60mob[i][j-1]*open_per_booked_mom.loc[i]['factor']
+                    num_open_accounts_60mob.loc[i,j] = num_open_accounts_60mob.loc[i,j-1]*open_per_booked_mom.loc[i]['factor']
         return num_open_accounts_60mob
     
     def save_forecast_output(self):
